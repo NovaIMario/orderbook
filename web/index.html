@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order Book Lab</title>
+  <meta name="description" content="A live market simulation on a price-time priority limit order book: market makers, noise, momentum and informed traders, flash crashes, and a C++ matching engine that handles 31 million orders a second.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23182230'/%3E%3Crect x='5' y='6' width='12' height='4' rx='1' fill='%23e66767'/%3E%3Crect x='5' y='12' width='18' height='4' rx='1' fill='%23e66767'/%3E%3Crect x='5' y='18' width='20' height='4' rx='1' fill='%233987e5'/%3E%3Crect x='5' y='24' width='10' height='4' rx='1' fill='%233987e5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <span class="brand">
+        <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="5" y="6" width="12" height="4" rx="1" fill="var(--down)"/><rect x="5" y="12" width="18" height="4" rx="1" fill="var(--down)"/><rect x="5" y="18" width="20" height="4" rx="1" fill="var(--up)"/><rect x="5" y="24" width="10" height="4" rx="1" fill="var(--up)"/></svg>
+        Order Book Lab
+      </span>
+      <a class="gh" href="https://github.com/NovaIMario/orderbook">C++ engine on GitHub</a>
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch theme">◐</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="intro">
+      <h1>A market you can break</h1>
+      <p>Simulated traders meet in a limit order book with price-time priority. Market makers quote both sides, noise traders trade at random, momentum traders chase moves, and informed traders know the hidden fair value. Change who is trading, cause a flash crash, or trade yourself. The matching rules are a JavaScript port of the C++ engine in this repo, which handles about <strong>31 million orders a second</strong>.</p>
+    </section>
+
+    <section class="controls card" aria-label="Simulation controls">
+      <div class="row">
+        <button type="button" class="btn primary" id="play">Pause</button>
+        <button type="button" class="btn" id="reset">Reset</button>
+        <label class="speed">Speed <input type="range" id="speed" min="1" max="30" value="6"></label>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" class="btn" id="news-up">Good news <span class="muted">(fair +2%)</span></button>
+        <button type="button" class="btn" id="news-down">Bad news <span class="muted">(fair −2%)</span></button>
+        <button type="button" class="btn danger" id="crash">Flash crash</button>
+      </div>
+    </section>
+
+    <div class="grid">
+      <div class="col">
+        <section class="card">
+          <div class="stats" id="stats"></div>
+          <div class="canvas-box" id="price-box"><canvas id="price" aria-label="Price chart" role="img"></canvas></div>
+          <div class="legend">
+            <span><span class="key" style="background:var(--series-1)"></span>Mid price</span>
+            <span><span class="key band"></span>Bid–ask spread</span>
+            <span><span class="key dashed"></span>Fair value (only informed traders see it)</span>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Depth</h2>
+          <p class="note">Total shares you could buy or sell at each price. A steep wall near the middle means a deep, liquid market.</p>
+          <div class="canvas-box short" id="depth-box"><canvas id="depth" aria-label="Depth chart" role="img"></canvas></div>
+        </section>
+        <section class="card">
+          <h2>Who is trading</h2>
+          <div class="sliders">
+            <label>Market makers <output id="o-makers"></output><input type="range" id="makers" min="0" max="8" value="4"></label>
+            <label>Maker spread (ticks) <output id="o-makerSpread"></output><input type="range" id="makerSpread" min="2" max="20" value="6"></label>
+            <label>Noise trading <output id="o-noise"></output><input type="range" id="noise" min="0" max="10" value="5"></label>
+            <label>Momentum traders <output id="o-momentum"></output><input type="range" id="momentum" min="0" max="10" value="3"></label>
+            <label>Informed traders <output id="o-informed"></output><input type="range" id="informed" min="0" max="6" value="2"></label>
+            <label>Fair value volatility <output id="o-volatility"></output><input type="range" id="volatility" min="0" max="10" value="4"></label>
+          </div>
+          <div class="table-scroll">
+            <table class="agents" id="agents"></table>
+          </div>
+        </section>
+      </div>
+
+      <div class="col side">
+        <section class="card">
+          <h2>Order book</h2>
+          <table class="ladder" id="ladder" aria-label="Order book ladder"></table>
+        </section>
+        <section class="card">
+          <h2>Trade yourself</h2>
+          <div class="you-row">
+            <label>Shares <input type="number" id="you-qty" value="100" min="1" max="5000" step="10"></label>
+            <button type="button" class="btn buy" id="you-buy">Buy at market</button>
+            <button type="button" class="btn sell" id="you-sell">Sell at market</button>
+          </div>
+          <p class="you-stats" id="you-stats" aria-live="polite"></p>
+        </section>
+        <section class="card">
+          <h2>Trades</h2>
+          <table class="tape" id="tape" aria-label="Recent trades"></table>
+        </section>
+      </div>
+    </div>
+
+    <section class="card">
+      <h2>Things to try</h2>
+      <ul class="try">
+        <li><strong>Remove the market makers.</strong> The spread blows out, the book often goes one-sided, and the price wanders far from fair value. Liquidity is what makes prices informative.</li>
+        <li><strong>Remove the informed traders.</strong> Nothing ties the price to fair value any more, so it drifts with noise and momentum.</li>
+        <li><strong>Turn momentum traders up to 10, then press Flash crash.</strong> Trend followers pile in behind the sell program, the makers widen their quotes, and the drop gets much deeper.</li>
+        <li><strong>Watch the agent table.</strong> Informed traders make money and noise traders pay for it. Market makers earn the spread in calm markets but get run over when the fair value jumps (adverse selection).</li>
+        <li><strong>Buy 2,000 shares at market.</strong> You walk the book and pay more on each level. The gap between the price you paid and the mid is your market impact.</li>
+      </ul>
+    </section>
+
+    <section class="card engine">
+      <h2>The C++ engine</h2>
+      <div class="engine-grid">
+        <div>
+          <p>The engine is a single-instrument limit order book written in C++20 with no dependencies:</p>
+          <ul>
+            <li>Price levels sit in a flat array indexed by tick, so finding a level is one memory access.</li>
+            <li>A 3-layer hierarchical bitset finds the next best price after a level empties, using at most 3 word scans for 262,144 ticks.</li>
+            <li>Orders are pooled and linked into a per-level FIFO, so cancels are O(1) with no allocation once warm.</li>
+            <li>It supports limit, market, IOC and FOK orders, cancels, and amends (a smaller size keeps time priority; a larger one loses it).</li>
+            <li>A randomised test drives it and a simple <code>std::map</code> book with the same 400,000 operations and requires identical trades and depth after every step.</li>
+          </ul>
+        </div>
+        <div>
+          <table class="bench">
+            <caption>5 million operations: 63% limit, 34% cancel, 3% market</caption>
+            <thead><tr><th>Book</th><th>Throughput</th><th>Per operation</th></tr></thead>
+            <tbody>
+              <tr><td>This engine</td><td><strong>31.2 M ops/s</strong></td><td>32 ns</td></tr>
+              <tr><td><code>std::map</code> + <code>std::list</code></td><td>7.9 M ops/s</td><td>127 ns</td></tr>
+            </tbody>
+          </table>
+          <p class="note">g++ 15 -O3 on a laptop CPU, single thread. Run <code>ob_bench</code> to reproduce.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">Simulated market. No real prices or money involved.</footer>
+</body>
+</html>
