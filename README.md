@@ -16,14 +16,15 @@ A single-instrument limit order book with price-time priority:
 
 ### Benchmark
 
-5 million pre-generated operations (63% limit, 34% cancel and 3% market orders, with a random-walk mid price and most orders placed near the touch), replayed through both books:
+Pre-generated operations (63% limit, 34% cancel and 3% market orders, with a random-walk mid price and most orders placed near the touch), replayed through both books:
 
-| Book | Throughput | Mean time per operation |
-| --- | --- | --- |
-| **`ob::OrderBook`** | **31.2 M ops/s** | **32 ns** |
-| `ob::ReferenceBook` (`std::map` of `std::list`, `unordered_map` index) | 7.9 M ops/s | 127 ns |
+| Machine and compiler | `ob::OrderBook` | `std::map` reference book | Speed-up |
+| --- | --- | --- | --- |
+| Windows laptop, g++ 15 `-O3` (5M ops) | **31.2 M ops/s** (32 ns/op) | 7.9 M ops/s (127 ns/op) | 3.9× |
+| GitHub Actions Linux, GCC (2M ops) | **31.9 M ops/s** (31 ns/op) | 13.9 M ops/s (72 ns/op) | 2.3× |
+| GitHub Actions Windows, MSVC (2M ops) | **46.4 M ops/s** (22 ns/op) | 11.1 M ops/s (90 ns/op) | 4.2× |
 
-Single thread, g++ 15 `-O3`, Windows laptop. CI runs the benchmark on Linux with GCC and on Windows with MSVC on every push. To reproduce: `./build/ob_bench 5000000`.
+The reference book uses `std::map` of `std::list` with an `unordered_map` index. All numbers are single threaded, and CI reruns the benchmark on every push. To reproduce: `./build/ob_bench 5000000`.
 
 ### Correctness
 
